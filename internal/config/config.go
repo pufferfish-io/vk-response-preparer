@@ -22,7 +22,7 @@ type Server struct {
 }
 
 type Config struct {
-	Kafka  Kafka  `envPrefix:"VKRP_KAFKA_"`
+	Kafka  Kafka  `envPrefix:"KAFKA_"`
 	Server Server `envPrefix:"VKRP_SERVER_"`
 }
 
