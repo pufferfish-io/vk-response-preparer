@@ -8,22 +8,17 @@ import (
 )
 
 type Kafka struct {
-	BootstrapServersValue    string `validate:"required" env:"BOOTSTRAP_SERVERS_VALUE"`
-	VkMessageTopicName       string `validate:"required" env:"TOPIC_NAME_VK_REQUEST_MESSAGE"`
-	ResponseMessageTopicName string `validate:"required" env:"TOPIC_NAME_VK_RESPONSE_PREPARER"`
-	ResponseMessageGroupID   string `validate:"required" env:"GROUP_ID_VK_RESPONSE_PREPARER"`
-	ClientID                 string `env:"CLIENT_ID_VK_RESPONSE_PREPARER"`
-	SaslUsername             string `env:"SASL_USERNAME"`
-	SaslPassword             string `env:"SASL_PASSWORD"`
-}
-
-type Server struct {
-	Port int `validate:"required" env:"PORT"`
+    BootstrapServersValue    string `validate:"required" env:"BOOTSTRAP_SERVERS_VALUE"`
+    VkMessageTopicName       string `validate:"required" env:"TOPIC_NAME_VK_REQUEST_MESSAGE"`
+    ResponseMessageTopicName string `validate:"required" env:"TOPIC_NAME_VK_RESPONSE_PREPARER"`
+    ResponseMessageGroupID   string `validate:"required" env:"GROUP_ID_VK_RESPONSE_PREPARER"`
+    ClientID                 string `env:"CLIENT_ID_VK_RESPONSE_PREPARER"`
+    SaslUsername             string `env:"SASL_USERNAME"`
+    SaslPassword             string `env:"SASL_PASSWORD"`
 }
 
 type Config struct {
-	Kafka  Kafka  `envPrefix:"KAFKA_"`
-	Server Server `envPrefix:"VK_RESPONSE_PREPARER_SERVER_"`
+    Kafka  Kafka  `envPrefix:"KAFKA_"`
 }
 
 func Load() (*Config, error) {
