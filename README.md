@@ -1,43 +1,34 @@
-# vk-response-preparer
+```mermaid
+flowchart LR
+  RESP["Kafka: vk_response_preparer"] --> PREP["vk-response-preparer"]
+  PREP -->|peer_id + message| OUTQ["Kafka: vk_request_message"]
+  OUTQ --> SENDER["vk-sender"]
+```
 
-## Что делает
+## О приложении
 
-1. Загружает конфигурацию из окружения, валидирует обязательные параметры Kafka и создает Zap-логгер.
-2. Создает `sarama`-producer с `SCRAM-SHA512`, идемпотентной отправкой и компрессией Snappy для темы, куда пишутся готовые VKMessages (`TOPIC_NAME_VK_REQUEST_MESSAGE`).
-3. Формирует `KafkaConsumer` в группе `GROUP_ID_VK_RESPONSE_PREPARER`, подписываясь на тему `TOPIC_NAME_VK_RESPONSE_PREPARER` и снабжает обработчик `processor.TgMessagePreparer`.
-4. Обработчик десериализует `contract.NormalizedResponse`, берет `chat_id` и `text`, формирует `contract.SendMessageRequest` и пересылает его в продьюсер `TOPIC_NAME_VK_REQUEST_MESSAGE`.
-5. Все ошибки логируются, consumer держит пул сигналов для корректного завершения на `SIGINT/SIGTERM`.
+vk-response-preparer принимает `NormalizedResponse` из Kafka, извлекает `chat_id` и `text`, превращает их в формат `SendMessageRequest` (`peer_id`, `message`) и кладёт результат в отдельный Kafka‑топик. Сам сервис не ходит в VK API.
 
-## Запуск
+## Роль приложения в архитектуре проекта
 
-1. Подготовьте `.env` (см. следующую секцию) с нужными переменными.
-2. Соберите и запустите в контексте Go:
+Он соединяет общую бизнес‑цепочку с отправителем для VK:
+```
+... → doc2text → vk-response-preparer → vk-sender
+```
+message-responder публикует ответы в топик с суффиксом `vk-response-preparer`, а preparer упрощает payload, чтобы `vk-sender` мог сразу вызвать метод `messages.send`.
+
+## Локальный запуск
+
+1. Требования: Go ≥ 1.24, Kafka‑кластер, настроенный `vk-sender`, который читает `KAFKA_TOPIC_NAME_VK_REQUEST_MESSAGE`.
+2. Экспортируйте `KAFKA_*` переменные:
+   - `KAFKA_BOOTSTRAP_SERVERS_VALUE`.
+   - `KAFKA_TOPIC_NAME_VK_RESPONSE_PREPARER` — входной топик с `NormalizedResponse`.
+   - `KAFKA_GROUP_ID_VK_RESPONSE_PREPARER` — consumer group.
+   - `KAFKA_TOPIC_NAME_VK_REQUEST_MESSAGE` — выходной топик для `vk-sender`.
+   - `KAFKA_CLIENT_ID_VK_RESPONSE_PREPARER`, при необходимости `KAFKA_SASL_USERNAME`/`KAFKA_SASL_PASSWORD`.
+3. Запустите сервис:
    ```bash
    go run ./cmd/vk-response-preparer
    ```
-3. Либо постройте Docker-образ и запустите, передав файл `.env`:
-   ```bash
-   docker build -t vk-response-preparer .
-   docker run --rm --env-file .env vk-response-preparer
-   ```
-4. Для локального отладки удобно экспортировать переменные:
-   ```bash
-   set -a && source .env && set +a && go run ./cmd/vk-response-preparer
-   ```
-
-## Переменные окружения
-
-### Kafka (все обязательны, кроме SASL, если не используется)
-
-- `KAFKA_BOOTSTRAP_SERVERS_VALUE` — `host:port[,host:port]` списка брокеров.
-- `KAFKA_TOPIC_NAME_VK_REQUEST_MESSAGE` — топик, куда отправляются подготовленные `SendMessageRequest` для отправки в VK.
-- `KAFKA_TOPIC_NAME_VK_RESPONSE_PREPARER` — входной топик, к которому подписан consumer.
-- `KAFKA_GROUP_ID_VK_RESPONSE_PREPARER` — идентификатор consumer group.
-- `KAFKA_CLIENT_ID_VK_RESPONSE_PREPARER` — идентификатор клиента (producer & consumer).
-- `KAFKA_SASL_USERNAME` и `KAFKA_SASL_PASSWORD` — передайте, если кластер требует SASL/PLAIN.
-
-## Примечания
-
-- JSON-сообщения, которые потребляются, должны соответствовать `internal/contract.NormalizedResponse`.
-- `processor.TgMessagePreparer` не обрабатывает пустой текст: если `text` пустой, он все равно отправит `message:""` в итоговый топик.
-- Логика граничит на том, что входящий `NormalizedResponse` уже содержит `chat_id`/`text`, нужные `source`/`context` используются на более высоких уровнях сервиса.
+   или через Docker.
+4. Проверьте, что сообщения с полями `peer_id` и `message` появляются в выходном топике и обрабатываются `vk-sender`.
